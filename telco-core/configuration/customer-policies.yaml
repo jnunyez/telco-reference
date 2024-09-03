@@ -1,0 +1,92 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: core-customer-policies
+policyDefaults:
+  namespace: ztp-core-policies
+  policySets: []
+  placement:
+    clusterSelectors:
+      common: "core"
+      version: "4.18"
+  remediationAction: "inform"
+  policyAnnotations:
+    ran.openshift.io/ztp-deploy-wave: "1"
+policies:
+  # Customer baseline configuration
+  - name: custom-performance-profile
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "8"
+    manifests:
+      # set PerformanceProfiles for MCPs
+      - path: reference-crs/required/performance/PerformanceProfile.yaml
+        patches:
+        - metadata:
+            name: pao-workload-worker-profile
+          spec:
+            cpu: 
+              reserved: 3-31,34-63,67-95,98-127
+              isolated: 0,1,2,32,33,64,65,66,96,97  
+            hugepages:
+              pages:
+              - count: 24
+                size: 1G
+              count: 14000
+                size: 2M
+            nodeSelector:
+              node-role.kubernetes.io/workload-worker-mcp: ""
+      - path: reference-crs/required/performance/PerformanceProfile.yaml
+        patches:
+        - metadata:
+            name: pao-workload-storage-profile
+          spec:
+            cpu: 
+              reserved: 3-31,34-63,67-95,98-127
+              isolated: 0,1,2,32,33,64,65,66,96,97  
+            hugepages:
+              pages:
+              - count: 64
+                size: 1G
+            nodeSelector:
+              node-role.kubernetes.io/storage-worker-mcp: ""
+    
+  - name: custom-mcp-unpause
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "200"
+    manifests:
+      # The MCPs should be added as extra manifests at installation time. Their
+      # inclusion here will reset the pause to false, allowing the MCPs to update
+      - path: customer-crs/machineconfigpool-workload-worker.yaml
+        patches:
+        - spec:
+            paused: false
+          status:
+            conditions:
+            - type: Updated
+              status: "True"
+            - type: Updating
+              status: "False"
+      - path: customer-crs/machineconfigpool-storage-worker.yaml
+        patches:
+        - spec:
+            paused: false
+          status:
+            conditions:
+            - type: Updated
+              status: "True"
+            - type: Updating
+              status: "False"
+
+  - name: core-custom-mcp-available
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "201"
+    manifests:
+      # This sets the desired maxUnavailable on the customMCPs
+      - path: customer-crs/machineconfigpool-workload-worker.yaml
+        patches:
+        - spec:
+            maxUnavailable: 1
+      - path: customer-crs/machineconfigpool-storage-worker.yaml
+        patches:
+        - spec:
+            maxUnavailable: 1

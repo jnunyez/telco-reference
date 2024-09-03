@@ -1,0 +1,47 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: storage-worker-mcp
+  name: 98-var-partition
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      disks:
+        - device: /dev/disk/by-path/pci-0000:00:17.0-ata-6.0
+          wipeTable: true
+          partitions:
+            - number: 1
+              sizeMiB: 102400
+              wipePartitionEntry: true
+            - number: 2
+              label: containers
+              sizeMiB: 102400
+              wipePartitionEntry: true
+            - number: 3
+              sizeMiB: 10240
+              wipePartitionEntry: true
+      filesystems:
+        - device: /dev/disk/by-partlabel/containers
+          format: xfs
+          path: /var/lib/containers
+          wipeFilesystem: true
+    systemd:
+      units:
+        - contents: |-
+            #GeneratedbyButane
+            [Unit]
+            Requires=systemd-fsck@dev-disk-by\x2dpartlabel-containers.service
+            After=systemd-fsck@dev-disk-by\x2dpartlabel-containers.service
+
+            [Mount]
+            Where=/var/lib/containers
+            What=/dev/disk/by-partlabel/containers
+            Type=xfs
+
+            [Install]
+            RequiredBy=local-fs.target
+          enabled: true
+          name: var-lib-containers.mount
